@@ -1,0 +1,52 @@
+---
+title: "Human Population Size on an Earth-like Planet--a Computer Experiment"
+authors: "Justin Patterson, Elsa Beda"
+output: pdf_document
+---
+
+```{r}
+library(MaxPro)
+```
+
+```{r}
+# 18-run design
+# 3 continuous factors, 1 discrete numeric factor (6 levels), 2 nominal factors (3 levels)
+# Generate a random Latin hypercube design (each factor standardized into [0,1]) 
+# as the initial design for continuous factors
+rand_design_part_1 = apply(
+    X = matrix(
+        rep(seq(from = 0, to = 1, length = 18), 3),
+        ncol = 3
+    ),
+    MARGIN = 2,
+    FUN = sample
+)
+# Generate a random initial design (standardized into [0,1]) for discrete numeric factors
+rand_design_part_2 = sample(
+    rep(seq(from = 0, to = 1, length = 6), each = 3)
+)
+# Construct an optimal design for the two nominal factors
+OA_matrix = cbind(
+    rep(1:3, each = 6), 
+    rep(1:3, 6)
+)
+# Create initial design matrix
+initial_design = cbind(
+    rand_design_part_1,
+    rand_design_part_2,
+    OA_matrix
+)
+```
+
+```{r}
+# Optimize the design based on MaxProQQ criterion
+obj = MaxProQQ(initial_design, p_nom = 2) 
+obj$Design
+```
+
+```{r}
+# Get day of the week.
+cmd = "date"
+my_field = 1
+system2(cmd, args = paste0(' | cut -f ', my_field, ' -d " "'))
+```
