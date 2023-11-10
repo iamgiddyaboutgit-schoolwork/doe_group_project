@@ -2,3 +2,4 @@ lib/
 world.html
 biomes.html
 __pycache__
+.vscode/
