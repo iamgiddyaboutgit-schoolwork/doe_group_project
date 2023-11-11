@@ -50,3 +50,12 @@ cmd = "date"
 my_field = 1
 system2(cmd, args = paste0(' | cut -f ', my_field, ' -d " "'))
 ```
+
+```{r}
+system2(
+    command = "python", 
+    args = "-V", 
+    stdout = TRUE,
+    stderr = FALSE
+)
+```
