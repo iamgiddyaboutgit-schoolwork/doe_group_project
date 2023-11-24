@@ -1,5 +1,4 @@
 lib/
-world.html
-biomes.html
+*.html
 __pycache__
 .vscode/
