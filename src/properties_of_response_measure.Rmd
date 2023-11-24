@@ -1,0 +1,9 @@
+---
+title: "What is a good response?"
+authors: "Justin Patterson, Elsa Beda"
+output: pdf_document
+---
+
+```{r}
+
+```
