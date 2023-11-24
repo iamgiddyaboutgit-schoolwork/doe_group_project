@@ -2,3 +2,4 @@ lib/
 *.html
 __pycache__
 .vscode/
+data/
