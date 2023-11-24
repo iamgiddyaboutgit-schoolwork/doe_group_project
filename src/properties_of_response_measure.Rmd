@@ -5,5 +5,73 @@ output: pdf_document
 ---
 
 ```{r}
+# Higher values indicate more reproducible.
+REPRODUCIBILITIES_OF_FACTOR_SETTINGS_ON_POP = seq(0.1, 0.9, 0.2)
+NUM_YEARS = 2
+t = seq_len(NUM_YEARS)
+starting_pop_size = c(100, 10000)
+mean_growth_rate = c(1.01, 1.03)
+combos_of_trts_and_repro_levels = expand.grid(
+    mean_growth_rate = mean_growth_rate, 
+    starting_pop_size = starting_pop_size,
+    reproducibility_level = REPRODUCIBILITIES_OF_FACTOR_SETTINGS_ON_POP
+)
+# Initialize before loop
+# https://stackoverflow.com/a/55836886/8423001
+num_rows = NROW(combos_of_trts_and_repro_levels) * NUM_YEARS
+num_cols = NCOL(combos_of_trts_and_repro_levels) + 2
+pop_sizes = matrix(
+    data = numeric(length = num_rows*num_cols), 
+    nrow = num_rows, 
+    ncol = num_cols,
+    byrow = FALSE,
+    dimnames = list(NULL, c(colnames(combos_of_trts_and_repro_levels), "year", "population_size"))
+)
+
+pop_sizes[, seq_len(NCOL(combos_of_trts_and_repro_levels))] = as.matrix(
+    combos_of_trts_and_repro_levels[
+        rep(
+            seq_len(
+                NROW(combos_of_trts_and_repro_levels)
+            ),
+            each = NUM_YEARS
+        ),
+        # Leave this blank to select all of the columns.
+        , drop = TRUE
+    ]
+)
+
+pop_sizes[, "year"] = rep(t, times = NROW(combos_of_trts_and_repro_levels))
+
+# For each factor setting, 
+# for each reproducibility level, generate a different set of 
+# replicate growth curves.
+
+# First set of errors
+sd1 = (1 / pop_sizes[, "reproducibility_level"]) * 0.01
+e1 = rnorm(n=NROW(pop_sizes), mean = 0, sd = sd1)
+# Get population sizes.
+current_pop_sizes = round(
+    pop_sizes[, "starting_pop_size"] * (pop_sizes[, "mean_growth_rate"] + e1)^pop_sizes[, "year"]
+)
+# Second set of errors
+sd2 = log(current_pop_sizes) / pop_sizes[, "reproducibility_level"]
+e2 = round(rnorm(n = NROW(pop_sizes), mean = log(pop_sizes[, "year"]), sd = sd2))
+# Incorporate 2nd set of errors
+current_pop_sizes = current_pop_sizes + e2
+
+# Handle extinctions
+for (i in seq_along(current_pop_sizes)) {
+    # Did an extinction occur?
+    if (current_pop_sizes[i] <= 0) {
+        current_pop_sizes[i:length(current_pop_sizes)] = 0
+        break
+    }
+}
+
+# save info
+pop_sizes[, "population_size"] = current_pop_sizes
+
+# Calculate RMSDIQR for each set of replicates.
 
 ```
