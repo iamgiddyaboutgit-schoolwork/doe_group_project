@@ -5,16 +5,53 @@ output: pdf_document
 ---
 
 ```{r}
+library("ggplot2")
+```
+
+```{r}
 # Higher values indicate more reproducible.
 REPRODUCIBILITIES_OF_FACTOR_SETTINGS_ON_POP = seq(0.1, 0.9, 0.2)
-NUM_YEARS = 2
+NUM_YEARS = 200
+NUM_REPLICATES = 3
 t = seq_len(NUM_YEARS)
-starting_pop_size = c(100, 10000)
-mean_growth_rate = c(1.01, 1.03)
+starting_pop_size = c(100)
+mean_growth_rate = c(1.03, 1.01)
 combos_of_trts_and_repro_levels = expand.grid(
-    mean_growth_rate = mean_growth_rate, 
-    starting_pop_size = starting_pop_size,
-    reproducibility_level = REPRODUCIBILITIES_OF_FACTOR_SETTINGS_ON_POP
+        mean_growth_rate = mean_growth_rate, 
+        starting_pop_size = starting_pop_size
+        # reproducibility_level = REPRODUCIBILITIES_OF_FACTOR_SETTINGS_ON_POP
+    )
+
+num_treatments = NROW(combos_of_trts_and_repro_levels)
+combos_of_trts_and_repro_levels = cbind(
+    data.frame(treatment = seq_len(num_treatments)),
+    combos_of_trts_and_repro_levels
+)
+
+combos_of_trts_and_repro_levels = combos_of_trts_and_repro_levels[
+    rep(
+        seq_len(
+            NROW(combos_of_trts_and_repro_levels)
+        ), 
+        each = length(REPRODUCIBILITIES_OF_FACTOR_SETTINGS_ON_POP)
+    ), 
+    # Leave blank to select all of the columns.
+
+]
+
+combos_of_trts_and_repro_levels[, "reproducibility_level"] = rep(
+    REPRODUCIBILITIES_OF_FACTOR_SETTINGS_ON_POP, 
+    times = num_treatments
+)
+
+combos_of_trts_and_repro_levels = combos_of_trts_and_repro_levels[
+    rep(seq_len(NROW(combos_of_trts_and_repro_levels)), each = NUM_REPLICATES),
+    # all cols
+]
+
+combos_of_trts_and_repro_levels[, "replicate"] = rep(
+    seq_len(NUM_REPLICATES),
+    times = NROW(combos_of_trts_and_repro_levels) / NUM_REPLICATES
 )
 # Initialize before loop
 # https://stackoverflow.com/a/55836886/8423001
@@ -46,17 +83,53 @@ pop_sizes[, "year"] = rep(t, times = NROW(combos_of_trts_and_repro_levels))
 # For each factor setting, 
 # for each reproducibility level, generate a different set of 
 # replicate growth curves.
-
 # First set of errors
-sd1 = (1 / pop_sizes[, "reproducibility_level"]) * 0.01
+sd1 = (1 / pop_sizes[, "reproducibility_level"]) * 0.001
 e1 = rnorm(n=NROW(pop_sizes), mean = 0, sd = sd1)
+# Second set of errors
+sd2 = log(pop_sizes[, "year"]) / pop_sizes[, "reproducibility_level"] 
+e2 = round(rnorm(n = NROW(pop_sizes), mean = log(pop_sizes[, "year"]), sd = sd2))
+# Get starting pop. sizes copied over.
+pop_sizes[pop_sizes[, "year"] == 1, "population_size"] = pop_sizes[
+    pop_sizes[, "year"] == 1, "starting_pop_size"
+] 
+
+for (i in seq(2, NROW(pop_sizes))) {  
+    current_pop_size = round(
+        pop_sizes[i - 1, "population_size"] * (pop_sizes[i - 1, "mean_growth_rate"] + e1[i - 1])
+    ) + e2[i - 1]
+
+    # Handle extinctions
+    # Did an extinction occur?
+    if (current_pop_size <= 0) {
+        # An extinction occurred.
+        # Set the current and following population sizes to 0.
+        # Use row_indices_to_keep for indexing into
+        # logical vector of wanted rows.
+        current_treatment = pop_sizes[i - 1, "treatment"]
+        current_reproducibility_level = pop_sizes[i - 1, "reproducibility_level"]
+        row_indices_to_change = which(
+            (pop_sizes[ , "treatment"] == current_treatment) 
+            & (pop_sizes[, "reproducibility_level"] == current_reproducibility_level)
+        )
+        pop_sizes[
+            # Set the current and following population sizes to 0.
+            row_indices_to_change[row_indices_to_change >= i], 
+            "population_size"
+        ] = 0
+        
+        break
+    } else {
+        pop_sizes[i, "population_size"] = current_pop_size
+    }
+
+}
+
 # Get population sizes.
 current_pop_sizes = round(
     pop_sizes[, "starting_pop_size"] * (pop_sizes[, "mean_growth_rate"] + e1)^pop_sizes[, "year"]
 )
-# Second set of errors
-sd2 = log(current_pop_sizes) / pop_sizes[, "reproducibility_level"]
-e2 = round(rnorm(n = NROW(pop_sizes), mean = log(pop_sizes[, "year"]), sd = sd2))
+
 # Incorporate 2nd set of errors
 current_pop_sizes = current_pop_sizes + e2
 
@@ -71,7 +144,19 @@ for (i in seq_along(current_pop_sizes)) {
 
 # save info
 pop_sizes[, "population_size"] = current_pop_sizes
+```
 
+```{r}
 # Calculate RMSDIQR for each set of replicates.
+fig = ggplot(
+    data = data.frame(pop_sizes[pop_sizes[, "treatment"] == 1, ]),
+    mapping = aes(
+        x = year,
+        y = population_size,
+        color = as.factor(reproducibility_level)
+    )
+) 
 
+fig = fig + geom_line()
+fig
 ```
