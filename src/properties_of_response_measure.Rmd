@@ -215,7 +215,10 @@ get_growth_data = function(
 
 ```{r}
 max_t = 100
-NUM_REPLICATES_1 = 10
+
+
+NUM_REPLICATES_1 = 3
+# Number of growth curves
 NUM_REPLICATES_2 = 30
 
 # Args for function call
