@@ -129,25 +129,34 @@ for (i in seq(2, NROW(pop_sizes))) {
 ```
 
 ```{r}
-get_exp_growth_with_error = function(max_t, b_0, b_1, b_2, e_0_extremeness, e_1_extremeness, e_2_extremeness) {
-    # y[t] is about (b_0 + e_0) + (b_1 + e_1)*exp((b_2 + e_2)*t)
+get_exp_data_with_error = function(max_t, b_0, b_1, b_2, e_0_extremeness, e_1_extremeness, e_2_extremeness) {
+    # The model is y = (b_0 + e_0) + (b_1 + e_1)*exp((b_2 + e_2)*t)
     # where e_0, e_1 and e_2 are errors.
-    # e_0_extremeness, e_1_extremeness & e_2_extremeness should be in [0, 1]
-    # with 1 indicating more extreme.
+    # e_0_extremeness, e_1_extremeness & e_2_extremeness should be non-negative
+    # with higher values indicating more extremeness.
+    #
+    # Returns y values.
     
-    y = vector(mode = "numeric", length = max_t)
-    y[1] = a
+    # R is 1-indexed. :(
+    y = vector(mode = "numeric", length = max_t + 1)
+    
+    # It's some proportion of b_0
+    sd_0 = e_0_extremeness * abs(b_0)
+    e_0 = rnorm(n = max_t + 1, mean = 0, sd = sd_0)
 
     # Start large and decrease.
-    sd1 = e1_extremeness * b + (- e1_extremeness * b / max_t) * seq_len(max_t)
-    e1 = rnorm(n = max_t, mean = 0, sd = sd1)
+    # The part with (- e_1_extremeness * abs(b_1) / max_t)
+    # is like the slope.
+    sd_1 = e_1_extremeness * abs(b_1) + (- e_1_extremeness * abs(b_1) / max_t) * seq(0, max_t, 1)
+    e_1 = rnorm(n = max_t + 1, mean = 0, sd = sd_1)
 
-    max_without_error = (a/b)*b^max_t
-    sd2 = e2_extremeness * (1 / (1 + 1/seq_len(max_t))) * max_without_error
-    e2 = rnorm(n = max_t, mean = 0, sd = sd2)
+    sd_2 = e_2_extremeness * abs(b_2)
+    e_2 = rnorm(n = max_t + 1, mean = 0, sd = sd_2)
 
-    for (t in seq(2, max_t, 1)) {
-        y[t] = (b + e1[t - 1]) * y[t-1] + e2[t - 1]
+    # y[1] means the y-value when t == 0.
+    y[1] = round(b_0 + e_0[1] + b_1 + e_1[1])
+    for (t in seq(2, max_t + 1, 1)) {
+        y[t] = round((b_0 + e_0[t]) + (y[t - 1] - (b_0 + e_0[t]))*exp(b_2 + e_2[t]))
     }
 
     return(y)
@@ -155,17 +164,64 @@ get_exp_growth_with_error = function(max_t, b_0, b_1, b_2, e_0_extremeness, e_1_
 ```
 
 ```{r}
-g = get_exp_growth_with_error(
-    max_t = 200, 
-    a = 100, 
-    b = 1.03, 
-    e1_extremeness = 0.1, 
-    e2_extremeness = 0.001
+max_t = 100
+NUM_REPLICATES = 50
+g = replicate(
+    n = NUM_REPLICATES,
+    expr = get_exp_data_with_error(
+        max_t = max_t, 
+        b_0 = 500, 
+        b_1 = 100, 
+        b_2 = 0.09,
+        e_0_extremeness = 0.1,
+        e_1_extremeness = 0.1, 
+        e_2_extremeness = 0.1
+    )
+)
+
+# Before loop
+col_to_check = 1
+num_cols_in_g = NCOL(g)
+while (col_to_check <= num_cols_in_g) {
+    # Check the current col.
+    if (sum(g[, col_to_check] <= 0) > 0) {
+        # Extinction occurred. Update col.
+        print("Extinction occurred.")
+        # remove column
+        g = g[, -col_to_check]
+        # There is no need to update col_to_check
+        num_cols_in_g = num_cols_in_g - 1
+    } else {
+        # Update col_to_check
+        col_to_check = col_to_check + 1
+    }
+}
+```
+
+```{r}
+g_data = data.frame(
+    replicate_num = rep(seq_len(NCOL(g)), each = NROW(g)),
+    year = rep(seq(0, NROW(g) - 1), times = NCOL(g)),
+    log_pop_size = log(as.vector(g))
 )
 ```
 
 ```{r}
-plot(x = seq_len(200), y = g)
+fig = ggplot(
+    data = g_data,
+    mapping = aes(
+        x = year,
+        y = log_pop_size,
+        color = as.factor(replicate_num)
+    )
+) 
+
+fig = fig + geom_line()
+fig
+```
+
+```{r}
+plot(x = seq(0, max_t, 1), y = log(g), type = "l")
 ```
 
 ```{r}
