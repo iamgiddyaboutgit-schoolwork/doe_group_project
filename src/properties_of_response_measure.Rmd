@@ -164,39 +164,92 @@ get_exp_data_with_error = function(max_t, b_0, b_1, b_2, e_0_extremeness, e_1_ex
 ```
 
 ```{r}
+get_growth_data = function(
+    num_replicates,
+    max_t, 
+    b_0 , 
+    b_1, 
+    b_2,
+    e_0_extremeness,
+    e_1_extremeness, 
+    e_2_extremeness
+) {
+    # Call get_exp_data_with_error.
+    g = replicate(
+        n = num_replicates,
+        expr = get_exp_data_with_error(
+            max_t = max_t, 
+            b_0 = b_0, 
+            b_1 = b_1, 
+            b_2 = b_2,
+            e_0_extremeness = e_0_extremeness,
+            e_1_extremeness = e_1_extremeness, 
+            e_2_extremeness = e_2_extremeness
+        )
+    )
+    # Check for extinctions.
+    # Before loop
+    for (my_rep in num_replicates) {
+        col_to_check = 1
+        num_cols_in_g = NCOL(g)
+        while (col_to_check <= num_cols_in_g) {
+            # Check the current col.
+            if (sum(g[, col_to_check] <= 0) > 0) {
+                # Extinction occurred. Update col.
+                print("Extinction occurred.")
+                # remove column
+                g = g[, -col_to_check]
+                # There is no need to update col_to_check
+                num_cols_in_g = num_cols_in_g - 1
+            } else {
+                # Update col_to_check
+                col_to_check = col_to_check + 1
+            }
+        }
+    }
+    
+}
+```
+
+```{r}
 max_t = 100
-NUM_REPLICATES = 50
+NUM_REPLICATES_1 = 3
+NUM_REPLICATES_2 = 1000
 g = replicate(
-    n = NUM_REPLICATES,
-    expr = get_exp_data_with_error(
-        max_t = max_t, 
-        b_0 = 500, 
-        b_1 = 100, 
-        b_2 = 0.09,
-        e_0_extremeness = 0.1,
-        e_1_extremeness = 0.1, 
-        e_2_extremeness = 0.1
+    n = NUM_REPLICATES_2,
+    expr = replicate(
+        n = NUM_REPLICATES_1,
+        expr = get_exp_data_with_error(
+            max_t = max_t, 
+            b_0 = 500, 
+            b_1 = 100, 
+            b_2 = 0.09,
+            e_0_extremeness = 0.1,
+            e_1_extremeness = 0.1, 
+            e_2_extremeness = 0.1
+        )
     )
 )
 
-# Before loop
-col_to_check = 1
-num_cols_in_g = NCOL(g)
-while (col_to_check <= num_cols_in_g) {
-    # Check the current col.
-    if (sum(g[, col_to_check] <= 0) > 0) {
-        # Extinction occurred. Update col.
-        print("Extinction occurred.")
-        # remove column
-        g = g[, -col_to_check]
-        # There is no need to update col_to_check
-        num_cols_in_g = num_cols_in_g - 1
-    } else {
-        # Update col_to_check
-        col_to_check = col_to_check + 1
-    }
+
+```
+
+```{r}
+get_sum_var_logs = function(X) {
+    # X: matrix
+    #
+    # The values in X are transformed via the log
+    # function.  Next, the sample variances of the values
+    # in each column of X are computed.
+    # The sum of these variances is returned.
+    return(sum(apply(X = log(X), MARGIN = 1, FUN = var)))
 }
 ```
+
+```{r}
+get_sum_var_logs(g)
+```
+
 
 ```{r}
 g_data = data.frame(
@@ -219,6 +272,8 @@ fig = ggplot(
 fig = fig + geom_line()
 fig
 ```
+
+
 
 ```{r}
 plot(x = seq(0, max_t, 1), y = log(g), type = "l")
