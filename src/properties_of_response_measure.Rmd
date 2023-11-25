@@ -84,11 +84,13 @@ pop_sizes[, "year"] = rep(t, times = NROW(combos_of_trts_and_repro_levels))
 # for each reproducibility level, generate a different set of 
 # replicate growth curves.
 # First set of errors
-sd1 = (1 / pop_sizes[, "reproducibility_level"]) * 0.001
-e1 = rnorm(n=NROW(pop_sizes), mean = 0, sd = sd1)
+sd1 = (1 / pop_sizes[, "reproducibility_level"]) * 0.0001
+e1 = (0.05 + (-0.05 / NUM_YEARS) * pop_sizes[, "year"]) + rnorm(n=NROW(pop_sizes), mean = 0, sd = sd1)
+# e1 = rep(0, NROW(pop_sizes))
 # Second set of errors
 sd2 = log(pop_sizes[, "year"]) / pop_sizes[, "reproducibility_level"] 
-e2 = round(rnorm(n = NROW(pop_sizes), mean = log(pop_sizes[, "year"]), sd = sd2))
+# e2 = round(rnorm(n = NROW(pop_sizes), mean = log(pop_sizes[, "year"]), sd = sd2))
+e2 = rep(0, NROW(pop_sizes))
 # Get starting pop. sizes copied over.
 pop_sizes[pop_sizes[, "year"] == 1, "population_size"] = pop_sizes[
     pop_sizes[, "year"] == 1, "starting_pop_size"
@@ -124,39 +126,62 @@ for (i in seq(2, NROW(pop_sizes))) {
     }
 
 }
+```
 
-# Get population sizes.
-current_pop_sizes = round(
-    pop_sizes[, "starting_pop_size"] * (pop_sizes[, "mean_growth_rate"] + e1)^pop_sizes[, "year"]
-)
+```{r}
+get_exp_growth_with_error = function(max_t, a, b, e1_extremeness, e2_extremeness) {
+    # y[1] = a
+    # y[t] = (b + e1) * y[t-1] + e2
+    # where e1 and e2 are errors
+    # e1_extremeness & e2 _extremeness should be in [0, 1]
+    # with 1 indicating more extreme.
+    
+    y = vector(mode = "numeric", length = max_t)
+    y[1] = a
 
-# Incorporate 2nd set of errors
-current_pop_sizes = current_pop_sizes + e2
+    # Start large and decrease.
+    sd1 = e1_extremeness * b + (- e1_extremeness * b / max_t) * seq_len(max_t)
+    e1 = rnorm(n = max_t, mean = 0, sd = sd1)
 
-# Handle extinctions
-for (i in seq_along(current_pop_sizes)) {
-    # Did an extinction occur?
-    if (current_pop_sizes[i] <= 0) {
-        current_pop_sizes[i:length(current_pop_sizes)] = 0
-        break
+    max_without_error = (a/b)*b^max_t
+    sd2 = e2_extremeness * (1 / (1 + 1/seq_len(max_t))) * max_without_error
+    e2 = rnorm(n = max_t, mean = 0, sd = sd2)
+
+    for (t in seq(2, max_t, 1)) {
+        y[t] = (b + e1[t - 1]) * y[t-1] + e2[t - 1]
     }
-}
 
-# save info
-pop_sizes[, "population_size"] = current_pop_sizes
+    return(y)
+}
+```
+
+```{r}
+g = get_exp_growth_with_error(
+    max_t = 200, 
+    a = 100, 
+    b = 1.03, 
+    e1_extremeness = 0.1, 
+    e2_extremeness = 0.001
+)
+```
+
+```{r}
+plot(x = seq_len(200), y = g)
 ```
 
 ```{r}
 # Calculate RMSDIQR for each set of replicates.
 fig = ggplot(
-    data = data.frame(pop_sizes[pop_sizes[, "treatment"] == 1, ]),
+    data = data.frame(pop_sizes[pop_sizes[, "treatment"] == 2, ]),
+    # data = data.frame(pop_sizes),
     mapping = aes(
         x = year,
         y = population_size,
         color = as.factor(reproducibility_level)
+        
     )
 ) 
 
-fig = fig + geom_line()
+fig = fig + geom_line(aes(group = replicate))
 fig
 ```
