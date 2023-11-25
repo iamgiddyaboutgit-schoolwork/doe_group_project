@@ -129,11 +129,10 @@ for (i in seq(2, NROW(pop_sizes))) {
 ```
 
 ```{r}
-get_exp_growth_with_error = function(max_t, a, b, e1_extremeness, e2_extremeness) {
-    # y[1] = a
-    # y[t] = (b + e1) * y[t-1] + e2
-    # where e1 and e2 are errors
-    # e1_extremeness & e2 _extremeness should be in [0, 1]
+get_exp_growth_with_error = function(max_t, b_0, b_1, b_2, e_0_extremeness, e_1_extremeness, e_2_extremeness) {
+    # y[t] is about (b_0 + e_0) + (b_1 + e_1)*exp((b_2 + e_2)*t)
+    # where e_0, e_1 and e_2 are errors.
+    # e_0_extremeness, e_1_extremeness & e_2_extremeness should be in [0, 1]
     # with 1 indicating more extreme.
     
     y = vector(mode = "numeric", length = max_t)
