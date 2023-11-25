@@ -204,26 +204,12 @@ get_growth_data = function(
     )
     # Check for extinctions.
     # Before loop
+    pos_g = vector(mode = "list", length = num_replicates_1)
     for (my_rep in seq_len(num_replicates_1)) {
-        col_to_check = 1
-        num_cols_in_g_rep = NCOL(g[ , , my_rep])
-        while (col_to_check <= num_cols_in_g_rep) {
-            # Check the current col.
-            if (sum(g[, col_to_check, my_rep] <= 0) > 0) {
-                # Extinction occurred. Update col.
-                print("Extinction occurred.")
-                # remove column
-                g[ , , my_rep] = g[ , -col_to_check, my_rep]
-                # There is no need to update col_to_check
-                num_cols_in_g_rep = num_cols_in_g_rep - 1
-            } else {
-                # Update col_to_check
-                col_to_check = col_to_check + 1
-            }
-        }
+        pos_g[[my_rep]] = drop_cols_with_negs(X = g[ , , my_rep])
     }
     
-    return(g)
+    return(pos_g)
 }
 ```
 
