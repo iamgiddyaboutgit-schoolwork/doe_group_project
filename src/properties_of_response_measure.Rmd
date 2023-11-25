@@ -164,10 +164,22 @@ get_exp_data_with_error = function(max_t, b_0, b_1, b_2, e_0_extremeness, e_1_ex
 ```
 
 ```{r}
+drop_cols_with_negs = function(X) {
+    # Args:
+    #   X: matrix
+    # Returns:
+    #   matrix with positive entries by
+    #   dropping columns from X
+    return(X[ , -(which(X <= 0, arr.ind = TRUE)[ , 2])])
+}
+```
+
+```{r}
 get_growth_data = function(
-    num_replicates,
+    num_replicates_1,
+    num_replicates_2,
     max_t, 
-    b_0 , 
+    b_0, 
     b_1, 
     b_2,
     e_0_extremeness,
@@ -176,31 +188,34 @@ get_growth_data = function(
 ) {
     # Call get_exp_data_with_error.
     g = replicate(
-        n = num_replicates,
-        expr = get_exp_data_with_error(
-            max_t = max_t, 
-            b_0 = b_0, 
-            b_1 = b_1, 
-            b_2 = b_2,
-            e_0_extremeness = e_0_extremeness,
-            e_1_extremeness = e_1_extremeness, 
-            e_2_extremeness = e_2_extremeness
+        n = num_replicates_1,
+        expr = replicate(
+            n = num_replicates_2,
+            expr = get_exp_data_with_error(
+                max_t = max_t, 
+                b_0 = b_0, 
+                b_1 = b_1, 
+                b_2 = b_2,
+                e_0_extremeness = e_0_extremeness,
+                e_1_extremeness = e_1_extremeness, 
+                e_2_extremeness = e_2_extremeness
+            )
         )
     )
     # Check for extinctions.
     # Before loop
-    for (my_rep in num_replicates) {
+    for (my_rep in seq_len(num_replicates_1)) {
         col_to_check = 1
-        num_cols_in_g = NCOL(g)
-        while (col_to_check <= num_cols_in_g) {
+        num_cols_in_g_rep = NCOL(g[ , , my_rep])
+        while (col_to_check <= num_cols_in_g_rep) {
             # Check the current col.
-            if (sum(g[, col_to_check] <= 0) > 0) {
+            if (sum(g[, col_to_check, my_rep] <= 0) > 0) {
                 # Extinction occurred. Update col.
                 print("Extinction occurred.")
                 # remove column
-                g = g[, -col_to_check]
+                g[ , , my_rep] = g[ , -col_to_check, my_rep]
                 # There is no need to update col_to_check
-                num_cols_in_g = num_cols_in_g - 1
+                num_cols_in_g_rep = num_cols_in_g_rep - 1
             } else {
                 # Update col_to_check
                 col_to_check = col_to_check + 1
@@ -208,12 +223,40 @@ get_growth_data = function(
         }
     }
     
+    return(g)
 }
 ```
 
 ```{r}
 max_t = 100
 NUM_REPLICATES_1 = 3
+NUM_REPLICATES_2 = 30
+
+# Args for function call
+num_replicates_1 = NUM_REPLICATES_1
+num_replicates_2 = NUM_REPLICATES_2
+b_0 = 500
+b_1 = 100
+b_2 = 0.09
+e_0_extremeness = 2
+e_1_extremeness = 2
+e_2_extremeness = 2
+
+try_1 = get_growth_data(
+    num_replicates_1 = NUM_REPLICATES_1,
+    num_replicates_2 = NUM_REPLICATES_2,
+    max_t = max_t, 
+    b_0 = b_0, 
+    b_1 = b_1, 
+    b_2 = b_2,
+    e_0_extremeness = e_0_extremeness,
+    e_1_extremeness = e_1_extremeness, 
+    e_2_extremeness = e_2_extremeness
+)
+```
+
+```{r}
+
 NUM_REPLICATES_2 = 1000
 g = replicate(
     n = NUM_REPLICATES_2,
