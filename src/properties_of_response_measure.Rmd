@@ -1,132 +1,14 @@
 ---
-title: "What is a good response?"
+title: "What is a good way to measure the dispersion of growth curves?"
 authors: "Justin Patterson, Elsa Beda"
 output: pdf_document
 ---
 
 ```{r}
 library("ggplot2")
+library("mlegp")
 ```
 
-```{r}
-# Higher values indicate more reproducible.
-REPRODUCIBILITIES_OF_FACTOR_SETTINGS_ON_POP = seq(0.1, 0.9, 0.2)
-NUM_YEARS = 200
-NUM_REPLICATES = 3
-t = seq_len(NUM_YEARS)
-starting_pop_size = c(100)
-mean_growth_rate = c(1.03, 1.01)
-combos_of_trts_and_repro_levels = expand.grid(
-        mean_growth_rate = mean_growth_rate, 
-        starting_pop_size = starting_pop_size
-        # reproducibility_level = REPRODUCIBILITIES_OF_FACTOR_SETTINGS_ON_POP
-    )
-
-num_treatments = NROW(combos_of_trts_and_repro_levels)
-combos_of_trts_and_repro_levels = cbind(
-    data.frame(treatment = seq_len(num_treatments)),
-    combos_of_trts_and_repro_levels
-)
-
-combos_of_trts_and_repro_levels = combos_of_trts_and_repro_levels[
-    rep(
-        seq_len(
-            NROW(combos_of_trts_and_repro_levels)
-        ), 
-        each = length(REPRODUCIBILITIES_OF_FACTOR_SETTINGS_ON_POP)
-    ), 
-    # Leave blank to select all of the columns.
-
-]
-
-combos_of_trts_and_repro_levels[, "reproducibility_level"] = rep(
-    REPRODUCIBILITIES_OF_FACTOR_SETTINGS_ON_POP, 
-    times = num_treatments
-)
-
-combos_of_trts_and_repro_levels = combos_of_trts_and_repro_levels[
-    rep(seq_len(NROW(combos_of_trts_and_repro_levels)), each = NUM_REPLICATES),
-    # all cols
-]
-
-combos_of_trts_and_repro_levels[, "replicate"] = rep(
-    seq_len(NUM_REPLICATES),
-    times = NROW(combos_of_trts_and_repro_levels) / NUM_REPLICATES
-)
-# Initialize before loop
-# https://stackoverflow.com/a/55836886/8423001
-num_rows = NROW(combos_of_trts_and_repro_levels) * NUM_YEARS
-num_cols = NCOL(combos_of_trts_and_repro_levels) + 2
-pop_sizes = matrix(
-    data = numeric(length = num_rows*num_cols), 
-    nrow = num_rows, 
-    ncol = num_cols,
-    byrow = FALSE,
-    dimnames = list(NULL, c(colnames(combos_of_trts_and_repro_levels), "year", "population_size"))
-)
-
-pop_sizes[, seq_len(NCOL(combos_of_trts_and_repro_levels))] = as.matrix(
-    combos_of_trts_and_repro_levels[
-        rep(
-            seq_len(
-                NROW(combos_of_trts_and_repro_levels)
-            ),
-            each = NUM_YEARS
-        ),
-        # Leave this blank to select all of the columns.
-        , drop = TRUE
-    ]
-)
-
-pop_sizes[, "year"] = rep(t, times = NROW(combos_of_trts_and_repro_levels))
-
-# For each factor setting, 
-# for each reproducibility level, generate a different set of 
-# replicate growth curves.
-# First set of errors
-sd1 = (1 / pop_sizes[, "reproducibility_level"]) * 0.0001
-e1 = (0.05 + (-0.05 / NUM_YEARS) * pop_sizes[, "year"]) + rnorm(n=NROW(pop_sizes), mean = 0, sd = sd1)
-# e1 = rep(0, NROW(pop_sizes))
-# Second set of errors
-sd2 = log(pop_sizes[, "year"]) / pop_sizes[, "reproducibility_level"] 
-# e2 = round(rnorm(n = NROW(pop_sizes), mean = log(pop_sizes[, "year"]), sd = sd2))
-e2 = rep(0, NROW(pop_sizes))
-# Get starting pop. sizes copied over.
-pop_sizes[pop_sizes[, "year"] == 1, "population_size"] = pop_sizes[
-    pop_sizes[, "year"] == 1, "starting_pop_size"
-] 
-
-for (i in seq(2, NROW(pop_sizes))) {  
-    current_pop_size = round(
-        pop_sizes[i - 1, "population_size"] * (pop_sizes[i - 1, "mean_growth_rate"] + e1[i - 1])
-    ) + e2[i - 1]
-
-    # Handle extinctions
-    # Did an extinction occur?
-    if (current_pop_size <= 0) {
-        # An extinction occurred.
-        # Set the current and following population sizes to 0.
-        # Use row_indices_to_keep for indexing into
-        # logical vector of wanted rows.
-        current_treatment = pop_sizes[i - 1, "treatment"]
-        current_reproducibility_level = pop_sizes[i - 1, "reproducibility_level"]
-        row_indices_to_change = which(
-            (pop_sizes[ , "treatment"] == current_treatment) 
-            & (pop_sizes[, "reproducibility_level"] == current_reproducibility_level)
-        )
-        pop_sizes[
-            # Set the current and following population sizes to 0.
-            row_indices_to_change[row_indices_to_change >= i], 
-            "population_size"
-        ] = 0
-        
-        break
-    } else {
-        pop_sizes[i, "population_size"] = current_pop_size
-    }
-
-}
-```
 
 ```{r}
 get_exp_data_with_error = function(max_t, b_0, b_1, b_2, e_0_extremeness, e_1_extremeness, e_2_extremeness) {
@@ -176,8 +58,7 @@ drop_cols_with_negs = function(X) {
 
 ```{r}
 get_growth_data = function(
-    num_replicates_1,
-    num_replicates_2,
+    num_curves,
     max_t, 
     b_0, 
     b_1, 
@@ -188,52 +69,41 @@ get_growth_data = function(
 ) {
     # Call get_exp_data_with_error.
     g = replicate(
-        n = num_replicates_1,
-        expr = replicate(
-            n = num_replicates_2,
-            expr = get_exp_data_with_error(
-                max_t = max_t, 
-                b_0 = b_0, 
-                b_1 = b_1, 
-                b_2 = b_2,
-                e_0_extremeness = e_0_extremeness,
-                e_1_extremeness = e_1_extremeness, 
-                e_2_extremeness = e_2_extremeness
-            )
+        n = num_curves,
+        expr = get_exp_data_with_error(
+            max_t = max_t, 
+            b_0 = b_0, 
+            b_1 = b_1, 
+            b_2 = b_2,
+            e_0_extremeness = e_0_extremeness,
+            e_1_extremeness = e_1_extremeness, 
+            e_2_extremeness = e_2_extremeness
         )
     )
-    # Check for extinctions.
-    # Before loop
-    pos_g = vector(mode = "list", length = num_replicates_1)
-    for (my_rep in seq_len(num_replicates_1)) {
-        pos_g[[my_rep]] = drop_cols_with_negs(X = g[ , , my_rep])
-    }
     
+    # Check for extinctions.
+    pos_g = drop_cols_with_negs(X = g)
+
     return(pos_g)
 }
 ```
 
 ```{r}
 max_t = 100
-
-
-NUM_REPLICATES_1 = 3
 # Number of growth curves
-NUM_REPLICATES_2 = 30
+NUM_REPLICATES_1 = 10
 
 # Args for function call
-num_replicates_1 = NUM_REPLICATES_1
-num_replicates_2 = NUM_REPLICATES_2
+num_curves = NUM_REPLICATES_1
 b_0 = 500
 b_1 = 100
 b_2 = 0.09
-e_0_extremeness = 2
-e_1_extremeness = 2
-e_2_extremeness = 2
+e_0_extremeness = 0.9
+e_1_extremeness = 0.2
+e_2_extremeness = 0.9
 
 try_1 = get_growth_data(
-    num_replicates_1 = NUM_REPLICATES_1,
-    num_replicates_2 = NUM_REPLICATES_2,
+    num_curves = num_curves,
     max_t = max_t, 
     b_0 = b_0, 
     b_1 = b_1, 
@@ -245,27 +115,46 @@ try_1 = get_growth_data(
 ```
 
 ```{r}
-get_sum_var_logs = function(X) {
+get_pooled_variance_of_log_response = function(X) {
     # X: matrix
+    #   The columns of X represent independent realizations
+    #   of the same univariate stochastic process.
+    #   Values in the same row of X have the same value
+    #   of the index t for the stochastic process.
     #
     # The values in X are transformed via the log
     # function.  Next, the sample variances of the values
     # in each column of X are computed.
-    # The sum of these variances is returned.
-    return(sum(apply(X = log(X), MARGIN = 1, FUN = var)))
+    # The arithmetic mean of these variances is returned.
+    # https://en.wikipedia.org/wiki/Pooled_variance#Definition_and_computation
+    # This is a pooling because there are uniform sample sizes 
+    # of the number of rows in X.
+    return(1 / NROW(X) * sum(apply(X = log(X), MARGIN = 1, FUN = var)))
 }
 ```
 
 ```{r}
-sum_var_logs = vector(mode = "numeric", length = NUM_REPLICATES_1)
-for (my_rep in seq_along(try_1)) {
-    sum_var_logs[my_rep] = get_sum_var_logs(try_1[[my_rep]])
-}
-sum_var_logs
+get_pooled_variance_of_log_response(try_1)
+```
+
+Use a GP regression to estimate the variance at each time point.
+
+```{r}
+design_matrix = matrix(data = seq(0, NROW(try_1) - 1, 1), nrow = NROW(try_1), ncol = 1, byrow = FALSE)
+try_1_mlegp = mlegp(X = design_matrix, Z = log(try_1))
 ```
 
 
 ```{r}
+plot(try_1_mlegp)
+```
+
+```{r}
+print(x = try_1_mlegp, nums = 1)
+```
+
+```{r}
+g = try_1
 g_data = data.frame(
     replicate_num = rep(seq_len(NCOL(g)), each = NROW(g)),
     year = rep(seq(0, NROW(g) - 1), times = NCOL(g)),
@@ -278,34 +167,22 @@ fig = ggplot(
     data = g_data,
     mapping = aes(
         x = year,
-        y = log_pop_size,
+        y = exp(log_pop_size),
         color = as.factor(replicate_num)
     )
 ) 
 
-fig = fig + geom_line()
+fig = fig + 
+    geom_line() +
+    labs(title = "Samples from the Same Stochastic Process", color = "Replicate")
+
 fig
+
 ```
 
 
-
 ```{r}
-plot(x = seq(0, max_t, 1), y = log(g), type = "l")
-```
-
-```{r}
-# Calculate RMSDIQR for each set of replicates.
-fig = ggplot(
-    data = data.frame(pop_sizes[pop_sizes[, "treatment"] == 2, ]),
-    # data = data.frame(pop_sizes),
-    mapping = aes(
-        x = year,
-        y = population_size,
-        color = as.factor(reproducibility_level)
-        
-    )
-) 
-
-fig = fig + geom_line(aes(group = replicate))
-fig
+png(filename = file.path("/home/justin/Documents/schoolwork/ISYE_6413_Design_of_Exp/doe_group_project/data/exp_growth.png"))
+print(fig)
+dev.off()
 ```
