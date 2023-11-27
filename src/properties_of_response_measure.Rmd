@@ -47,17 +47,6 @@ get_exp_data_with_error = function(max_t, b_0, b_1, b_2, e_0_extremeness, e_1_ex
 ```
 
 ```{r}
-drop_cols_with_negs = function(X) {
-    # Args:
-    #   X: matrix
-    # Returns:
-    #   matrix with positive entries by
-    #   dropping columns from X
-    return(X[ , -(which(X <= 0, arr.ind = TRUE)[ , 2])])
-}
-```
-
-```{r}
 get_growth_data = function(
     num_curves,
     max_t, 
