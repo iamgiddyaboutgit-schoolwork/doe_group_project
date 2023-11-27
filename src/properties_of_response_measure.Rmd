@@ -266,26 +266,27 @@ for (i in seq_len(length(sets_of_growth_curves))) {
 ```{r}
 theta_hat = mean_normalized_cv_of_log_response
 data_generator = get_sets_of_growth_data
-m = 3
+m = 100
 max_t = 100
 b_0 = 500
 b_1 = 100
 b_2 = 0.09
-e_0_extremeness = 0.9
+e_0_extremeness = 2
 e_1_extremeness = 0.2
 e_2_extremeness = 0.9
 
 # Prep before loop
-max_n = 10
+max_n = 30
 n = seq(2, max_n, 1)
 empirical_variances_of_estimator = vector(mode = "numeric", length = length(n))
 
-for(i in n) {
-    print(i)
+for(num_curves in n) {
+    # i is an index for empirical_variances_of_estimator
+    i = num_curves - 1
     empirical_variances_of_estimator[i] = mle_var_of_estimator(
         theta_hat = theta_hat, 
         data_generator = data_generator,
-        n = i,
+        n = num_curves,
         m = m,
         max_t = max_t,
         b_0 = b_0,
@@ -295,9 +296,71 @@ for(i in n) {
         e_1_extremeness = e_1_extremeness,
         e_2_extremeness = e_2_extremeness
     )
-    print(empirical_variances_of_estimator[i])
 }
-
-
 ```
 
+```{r}
+# https://www.dliebl.com/RM_ES_Script/estimation-theory.html
+df_for_estimator_investigation = data.frame(
+    n = n,
+    empirical_variance_of_estimator = empirical_variances_of_estimator
+)
+```
+
+Fit power-law model.
+
+```{r}
+# https://www.r-bloggers.com/2022/02/how-to-calculate-power-regression-in-r-step-by-step-guide/
+model_1 = lm(I(log(empirical_variance_of_estimator)) ~ I(log(n)), data = df_for_estimator_investigation)
+summary(model_1)
+
+# https://stackoverflow.com/questions/14033551/r-plotting-confidence-bands-with-ggplot
+# https://stackoverflow.com/questions/40324963/when-predicting-using-model-with-logtarget-do-i-have-to-make-any-changes-to-pr
+model_1_preds = exp(predict.lm(
+    object = model_1,
+    newdata = data.frame(n = n)
+))
+
+model_1_formula_text = paste0(
+    "log(empirical_var_of_estimator) = (", 
+    round(exp(coef(model_1)[1]), 4),
+    ")(n)^(",
+    round(coef(model_1)[2], 4),
+    ")"
+)
+```
+
+```{r}
+fig = ggplot(
+    data = df_for_estimator_investigation,
+    mapping = aes(
+        x = n,
+        y = empirical_variance_of_estimator
+    ) 
+)
+
+# https://stackoverflow.com/questions/28755576/add-text-to-ggplot
+# https://stackoverflow.com/questions/31568453/using-different-font-styles-in-annotate-ggplot2
+fig = fig + geom_line() +
+    geom_line(
+        data = data.frame(n = n, fit = model_1_preds),
+        mapping = aes(x = n, y = fit, color = "red")
+    ) +
+    scale_y_continuous(n.breaks = 10) +
+    # https://stackoverflow.com/questions/65076492/ggplot-size-of-annotate-vs-size-of-element-text
+    annotate("text", x = 15, y = 0.002, label = model_1_formula_text, color = "red", size = 8) +
+    labs(
+        title = "Investigation of Convergence of Growth Curve\nDispersion Estimator",
+        y = "Empirical Variance of Estimator"
+    ) +
+    theme_gray(base_size = 20) +
+    guides(color = "none")
+    
+print(fig)
+fig_file_name = paste0("convergence_of_response.png")
+ggsave(
+    filename = file.path("/home/justin/Documents/schoolwork/ISYE_6413_Design_of_Exp/doe_group_project/data", fig_file_name),
+    plot = fig,
+    dpi = 800
+)
+```
