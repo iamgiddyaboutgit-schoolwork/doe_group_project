@@ -7,6 +7,7 @@ output: pdf_document
 ```{r}
 library("ggplot2")
 library("mlegp")
+library("deepgp")
 ```
 
 
@@ -67,10 +68,19 @@ get_growth_data = function(
     e_1_extremeness, 
     e_2_extremeness
 ) {
-    # Call get_exp_data_with_error.
-    g = replicate(
-        n = num_curves,
-        expr = get_exp_data_with_error(
+    # Before loop
+    num_curves_without_extinction = 0
+    # Call get_exp_data_with_error to fill g.
+    num_rows = max_t + 1
+    num_cols = num_curves
+    g = matrix(
+        data = numeric(length = num_rows * num_cols), 
+        nrow = num_rows, 
+        ncol = num_cols
+    )
+    while(num_curves_without_extinction < num_curves) {
+        # We need to generate more growth curves.
+        new_growth_curve = get_exp_data_with_error(
             max_t = max_t, 
             b_0 = b_0, 
             b_1 = b_1, 
@@ -79,12 +89,58 @@ get_growth_data = function(
             e_1_extremeness = e_1_extremeness, 
             e_2_extremeness = e_2_extremeness
         )
-    )
-    
-    # Check for extinctions.
-    pos_g = drop_cols_with_negs(X = g)
+        # Prep for next iteration.
+        # If there was an extinction, then
+        # do not increment num_curves_without_extinction;
+        # otherwise, increment num_curves_without_extinction
+        # and save the growth curve.
 
-    return(pos_g)
+        # If there is at least 1 non-positive value,
+        if(sum(new_growth_curve <= 0) > 0) {
+            # There was an extinction.
+            next 
+        } else {
+            num_curves_without_extinction = num_curves_without_extinction + 1
+            # save curve
+            g[, num_curves_without_extinction] = new_growth_curve
+        }
+    }
+
+    return(g)
+}
+```
+
+```{r}
+get_sets_of_growth_data = function(
+    num_sets,
+    num_curves,
+    max_t, 
+    b_0, 
+    b_1, 
+    b_2,
+    e_0_extremeness,
+    e_1_extremeness, 
+    e_2_extremeness
+) {
+    # Returns a list where each element of the list
+    # is a matrix.  Columns in the matrices are
+    # the data for the growth curves.
+    return(
+        replicate(
+            n = num_sets,
+            expr = get_growth_data(
+                num_curves,
+                max_t, 
+                b_0, 
+                b_1, 
+                b_2,
+                e_0_extremeness,
+                e_1_extremeness, 
+                e_2_extremeness
+            ),
+            simplify = FALSE
+        )
+    )
 }
 ```
 
@@ -101,8 +157,10 @@ b_2 = 0.09
 e_0_extremeness = 0.9
 e_1_extremeness = 0.2
 e_2_extremeness = 0.9
+num_sets = 2
 
-try_1 = get_growth_data(
+try_2 = get_sets_of_growth_data(
+    num_sets = num_sets,
     num_curves = num_curves,
     max_t = max_t, 
     b_0 = b_0, 
@@ -115,26 +173,36 @@ try_1 = get_growth_data(
 ```
 
 ```{r}
-get_pooled_variance_of_log_response = function(X) {
-    # X: matrix
-    #   The columns of X represent independent realizations
-    #   of the same univariate stochastic process.
-    #   Values in the same row of X have the same value
-    #   of the index t for the stochastic process.
-    #
-    # The values in X are transformed via the log
-    # function.  Next, the sample variances of the values
-    # in each column of X are computed.
-    # The arithmetic mean of these variances is returned.
-    # https://en.wikipedia.org/wiki/Pooled_variance#Definition_and_computation
-    # This is a pooling because there are uniform sample sizes 
-    # of the number of rows in X.
-    return(1 / NROW(X) * sum(apply(X = log(X), MARGIN = 1, FUN = var)))
+normalized_cv = function(x, na.rm = FALSE) {
+    return(sd(x, na.rm) / median(x, na.rm))
 }
 ```
 
 ```{r}
-get_pooled_variance_of_log_response(try_1)
+mean_normalized_cv_of_log_response = function(X) {
+    # X: matrix
+    #   The columns of X represent independent realizations
+    #   of the same discrete-time postive integer-valued 
+    #   stochastic process.
+    #   The process is assumed to generate ratio data.
+    #   Values in the same row of X have the same value
+    #   of the index t for the stochastic process.
+    #
+    # The values in X are transformed via the log
+    # function.  The standard deviation of each row
+    # of X is computed and divided by the median of
+    # each row to yield a normalized coefficient of 
+    # variation (CV).
+    # https://en.wikipedia.org/wiki/Coefficient_of_variation#Alternative  
+    # The CVs of each row are summarized by taking
+    # their arithmetic mean.
+
+    return(1 / NROW(X) * sum(apply(X = log(X), MARGIN = 1, FUN = normalized_cv)))
+}
+```
+
+```{r}
+mean_normalized_cv_of_log_response(try_1)
 ```
 
 Use a GP regression to estimate the variance at each time point.
@@ -144,6 +212,12 @@ design_matrix = matrix(data = seq(0, NROW(try_1) - 1, 1), nrow = NROW(try_1), nc
 try_1_mlegp = mlegp(X = design_matrix, Z = log(try_1))
 ```
 
+```{r}
+try_1_mlegp_predictions = mlegp::predict.gp(
+    object = try_1_mlegp[[1]],
+    se.fit = TRUE
+)
+```
 
 ```{r}
 plot(try_1_mlegp)
@@ -151,6 +225,39 @@ plot(try_1_mlegp)
 
 ```{r}
 print(x = try_1_mlegp, nums = 1)
+```
+
+```{r}
+mean(rcauchy(n = 3))
+```
+
+Try using the package deepgp. not
+
+```{r}
+theta_hat = mean_normalized_cv_of_log_response
+```
+
+```{r}
+mle_var_of_estimator = function(theta_hat, X, m, ...) {
+    # Estimates the variance of some estimator
+    # theta_hat using m trials of the estimator
+    # on samples of size n.
+    # Args:
+    #   theta_hat: 
+    #   X: matrix of data
+    #   m: number of replicates to use in estimating the
+    #       variance of the estimator.
+    #   ... (ellipses) Additional arguments to pass
+    #       to theta_hat
+    return(
+        (1 / m) * sum((theta_hat(X) - (1 / m) * sum(theta_hat(X)))^2)
+    )
+}
+```
+
+
+```{r}
+mle_var_of_estimator(theta_hat = theta_hat, X = try_1, m = 100000)
 ```
 
 ```{r}
