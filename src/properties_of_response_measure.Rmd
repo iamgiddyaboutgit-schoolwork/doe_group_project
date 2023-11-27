@@ -6,10 +6,9 @@ output: pdf_document
 
 ```{r}
 library("ggplot2")
-# library("mlegp")
-# library("deepgp")
 ```
 
+# Functions
 
 ```{r}
 get_exp_data_with_error = function(max_t, b_0, b_1, b_2, e_0_extremeness, e_1_extremeness, e_2_extremeness) {
@@ -43,9 +42,7 @@ get_exp_data_with_error = function(max_t, b_0, b_1, b_2, e_0_extremeness, e_1_ex
 
     return(y)
 }
-```
 
-```{r}
 get_growth_data = function(
     num_curves,
     max_t, 
@@ -96,9 +93,7 @@ get_growth_data = function(
 
     return(g)
 }
-```
 
-```{r}
 get_sets_of_growth_data = function(
     num_sets,
     num_curves,
@@ -130,44 +125,11 @@ get_sets_of_growth_data = function(
         )
     )
 }
-```
 
-```{r}
-max_t = 100
-# Number of growth curves
-NUM_REPLICATES_1 = 500
-
-# Args for function call
-num_sets = 2
-num_curves = NUM_REPLICATES_1
-b_0 = 500
-b_1 = 100
-b_2 = 0.09
-e_0_extremeness = 0.9
-e_1_extremeness = 0.2
-e_2_extremeness = 0.9
-
-
-try_2 = get_sets_of_growth_data(
-    num_sets = num_sets,
-    num_curves = num_curves,
-    max_t = max_t, 
-    b_0 = b_0, 
-    b_1 = b_1, 
-    b_2 = b_2,
-    e_0_extremeness = e_0_extremeness,
-    e_1_extremeness = e_1_extremeness, 
-    e_2_extremeness = e_2_extremeness
-)
-```
-
-```{r}
 normalized_cv = function(x, na.rm = FALSE) {
     return(sd(x, na.rm) / median(x, na.rm))
 }
-```
 
-```{r}
 mean_normalized_cv_of_log_response = function(X) {
     # X: matrix
     #   The columns of X represent independent realizations
@@ -188,41 +150,7 @@ mean_normalized_cv_of_log_response = function(X) {
 
     return(1 / NROW(X) * sum(apply(X = log(X), MARGIN = 1, FUN = normalized_cv)))
 }
-```
 
-```{r}
-mean_normalized_cv_of_log_response(try_2[[2]])
-```
-
-Use a GP regression to estimate the variance at each time point.
-
-```{r}
-design_matrix = matrix(data = seq(0, NROW(try_1) - 1, 1), nrow = NROW(try_1), ncol = 1, byrow = FALSE)
-try_1_mlegp = mlegp(X = design_matrix, Z = log(try_1))
-```
-
-```{r}
-try_1_mlegp_predictions = mlegp::predict.gp(
-    object = try_1_mlegp[[1]],
-    se.fit = TRUE
-)
-```
-
-```{r}
-plot(try_1_mlegp)
-```
-
-```{r}
-print(x = try_1_mlegp, nums = 1)
-```
-
-```{r}
-mean(rcauchy(n = 3))
-```
-
-
-
-```{r}
 mle_var_of_estimator = function(theta_hat, data_generator, n, m, ...) {
     # Estimates the variance of some estimator theta_hat
     # using m trials of the estimator
@@ -266,6 +194,81 @@ mle_var_of_estimator = function(theta_hat, data_generator, n, m, ...) {
     )
 }
 ```
+
+# Plots of Growth Curves and Estimator
+
+```{r}
+# Args for function call
+num_sets = 2
+num_curves = 5
+max_t = 100
+b_0 = 500
+b_1 = 100
+b_2 = 0.09
+e_0_extremeness = 0.2
+e_1_extremeness = 0.2
+e_2_extremeness = 2
+
+sets_of_growth_curves = get_sets_of_growth_data(
+    num_sets = num_sets,
+    num_curves = num_curves,
+    max_t = max_t, 
+    b_0 = b_0, 
+    b_1 = b_1, 
+    b_2 = b_2,
+    e_0_extremeness = e_0_extremeness,
+    e_1_extremeness = e_1_extremeness, 
+    e_2_extremeness = e_2_extremeness
+)
+
+
+for (i in seq_len(length(sets_of_growth_curves))) {
+    g = sets_of_growth_curves[[i]]
+    # Make dataframe for graphing with ggplot package.
+    g_data = data.frame(
+        replicate_num = rep(seq_len(NCOL(g)), each = NROW(g)),
+        year = rep(seq(0, NROW(g) - 1), times = NCOL(g)),
+        log_pop_size = log(as.vector(g))
+    )
+
+    fig = ggplot(
+        data = g_data,
+        mapping = aes(
+            x = year,
+            y = log_pop_size,
+            color = as.factor(replicate_num)
+        )
+    ) 
+
+    estimate = round(mean_normalized_cv_of_log_response(g), 4)
+
+    fig_title = paste0("Samples of Growth Curves from the Same Population\nDissimilarity Measure: ", estimate)
+    fig = fig + 
+        geom_line() +
+        labs(
+            title = fig_title, 
+            x = "Year",
+            y = "log(Population Size)",
+            color = "Replicate"
+        ) +
+        theme_gray(base_size = 20)
+
+    print(fig)
+    fig_file_name = paste0("example_growth_curve_set_", i, ".png")
+    ggsave(
+        filename = file.path("/home/justin/Documents/schoolwork/ISYE_6413_Design_of_Exp/doe_group_project/data", fig_file_name),
+        plot = fig,
+        dpi = 800
+    )
+}
+
+```
+
+
+
+
+
+
 
 
 ```{r}
@@ -327,36 +330,3 @@ thing_for_limit = mle_var_of_estimator(
 thing_for_limit
 ```
 
-```{r}
-g = try_1
-g_data = data.frame(
-    replicate_num = rep(seq_len(NCOL(g)), each = NROW(g)),
-    year = rep(seq(0, NROW(g) - 1), times = NCOL(g)),
-    log_pop_size = log(as.vector(g))
-)
-```
-
-```{r}
-fig = ggplot(
-    data = g_data,
-    mapping = aes(
-        x = year,
-        y = exp(log_pop_size),
-        color = as.factor(replicate_num)
-    )
-) 
-
-fig = fig + 
-    geom_line() +
-    labs(title = "Samples from the Same Stochastic Process", color = "Replicate")
-
-fig
-
-```
-
-
-```{r}
-png(filename = file.path("/home/justin/Documents/schoolwork/ISYE_6413_Design_of_Exp/doe_group_project/data/exp_growth.png"))
-print(fig)
-dev.off()
-```
