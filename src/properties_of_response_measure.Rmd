@@ -1,16 +1,14 @@
 ---
-title: "What is a good way to measure the dispersion of growth curves?"
+title: "What is a good way to measure the dispersion or dissimilarity of growth curves?"
 authors: "Justin Patterson, Elsa Beda"
 output: pdf_document
 ---
 
-```{r}
+```{r load_packages}
 library("ggplot2")
 ```
 
-# Functions
-
-```{r}
+```{r Functions}
 get_exp_data_with_error = function(max_t, b_0, b_1, b_2, e_0_extremeness, e_1_extremeness, e_2_extremeness) {
     # The model is y = (b_0 + e_0) + (b_1 + e_1)*exp((b_2 + e_2)*t)
     # where e_0, e_1 and e_2 are errors.
@@ -202,12 +200,12 @@ mle_var_of_estimator = function(theta_hat, data_generator, n, m, ...) {
 num_sets = 2
 num_curves = 5
 max_t = 100
-b_0 = 500
+b_0 = 1000
 b_1 = 100
 b_2 = 0.09
-e_0_extremeness = 0.2
-e_1_extremeness = 0.2
-e_2_extremeness = 2
+e_0_extremeness = 5
+e_1_extremeness = 0.1
+e_2_extremeness = 0.1
 
 sets_of_growth_curves = get_sets_of_growth_data(
     num_sets = num_sets,
@@ -242,7 +240,7 @@ for (i in seq_len(length(sets_of_growth_curves))) {
 
     estimate = round(mean_normalized_cv_of_log_response(g), 4)
 
-    fig_title = paste0("Samples of Growth Curves from the Same Population\nDissimilarity Measure: ", estimate)
+    fig_title = paste0("Samples of Growth Curves from the Same Population\nDispersion Estimate: ", estimate)
     fig = fig + 
         geom_line() +
         labs(
@@ -261,49 +259,14 @@ for (i in seq_len(length(sets_of_growth_curves))) {
         dpi = 800
     )
 }
-
 ```
 
-
-
-
-
-
-
+# Investigation of Convergence of Growth Curve Dispersion Estimator
 
 ```{r}
 theta_hat = mean_normalized_cv_of_log_response
 data_generator = get_sets_of_growth_data
-max_t = 100
-b_0 = 500
-b_1 = 100
-b_2 = 0.09
-e_0_extremeness = 0.9
-e_1_extremeness = 0.2
-e_2_extremeness = 0.9
-m = 10
-n = 50
-other_args = list(
-    num_sets = m,
-    num_curves = n,
-    max_t = max_t,
-    b_0 = b_0,
-    b_1 = b_1,
-    b_2 = b_2,
-    e_0_extremeness = e_0_extremeness,
-    e_1_extremeness = e_1_extremeness,
-    e_2_extremeness = e_2_extremeness
-)
-# u = do.call(what = data_generator, args = other_args)
-
-# u = data_generator(other_args)
-```
-
-```{r}
-theta_hat = mean_normalized_cv_of_log_response
-data_generator = get_sets_of_growth_data
-n = 60
-m = 100
+m = 3
 max_t = 100
 b_0 = 500
 b_1 = 100
@@ -312,21 +275,29 @@ e_0_extremeness = 0.9
 e_1_extremeness = 0.2
 e_2_extremeness = 0.9
 
-# https://stackoverflow.com/a/62828253/8423001
+# Prep before loop
+max_n = 10
+n = seq(2, max_n, 1)
+empirical_variances_of_estimator = vector(mode = "numeric", length = length(n))
 
-thing_for_limit = mle_var_of_estimator(
-    theta_hat = theta_hat, 
-    data_generator = data_generator,
-    n = n,
-    m = m,
-    max_t = max_t,
-    b_0 = b_0,
-    b_1 = b_1,
-    b_2 = b_2,
-    e_0_extremeness = e_0_extremeness,
-    e_1_extremeness = e_1_extremeness,
-    e_2_extremeness = e_2_extremeness
-)
-thing_for_limit
+for(i in n) {
+    print(i)
+    empirical_variances_of_estimator[i] = mle_var_of_estimator(
+        theta_hat = theta_hat, 
+        data_generator = data_generator,
+        n = i,
+        m = m,
+        max_t = max_t,
+        b_0 = b_0,
+        b_1 = b_1,
+        b_2 = b_2,
+        e_0_extremeness = e_0_extremeness,
+        e_1_extremeness = e_1_extremeness,
+        e_2_extremeness = e_2_extremeness
+    )
+    print(empirical_variances_of_estimator[i])
+}
+
+
 ```
 
