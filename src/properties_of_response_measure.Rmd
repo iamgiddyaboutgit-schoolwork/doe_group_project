@@ -322,7 +322,7 @@ model_1_preds = exp(predict.lm(
 ))
 
 model_1_formula_text = paste0(
-    "log(empirical_var_of_estimator) = (", 
+    "empirical_var_of_estimator = (", 
     round(exp(coef(model_1)[1]), 4),
     ")(n)^(",
     round(coef(model_1)[2], 4),
