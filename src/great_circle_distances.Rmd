@@ -1,0 +1,36 @@
+---
+title: "Distance Distribution"
+authors: "Justin Patterson, Elsa Beda"
+output: pdf_document
+---
+
+
+```{r}
+DATA_PATH = file.path("data")
+print(getwd())
+```
+
+```{r}
+dist_matrix = read.csv(file=file.path(DATA_PATH, "dist_matrix.csv"), header = FALSE)
+```
+
+```{r}
+# We only care about the distances in the upper triangle.
+n = NROW(dist_matrix)
+num_distances = n * (n - 1) / 2
+
+# before loop
+distances = vector(mode = "integer", length = num_distances)
+distances_index = 1L
+for (i in seq_len(n - 1L)){
+    for (j in seq(from = i + 1L, to = n, by = 1L)){
+        # Get distance for ith row and jth col.
+        distances[distances_index] = dist_matrix[i, j] 
+        distances_index = distances_index + 1L
+    }
+}  
+```
+
+```{r}
+hist(distances, na.rm = TRUE)
+```
