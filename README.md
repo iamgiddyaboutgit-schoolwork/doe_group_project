@@ -1,4 +1,4 @@
-# Population Genetics Experiment Group Project
+# Human Population Size on an Earth-like Planet–a Computer Experiment
 
 # Getting things set up
 To run code in the src directory, there are some dependencies that need to
