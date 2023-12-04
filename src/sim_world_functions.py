@@ -17,7 +17,7 @@ def weight_0_more(x, b):
     are points on the curve.
 
     Args:
-        x: float. 
+        x: float. Should be in interval [0, 1].
         b: float. positive real number
 
     Returns:
