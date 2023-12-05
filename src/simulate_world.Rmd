@@ -5,17 +5,18 @@ output: pdf_document
 ---
 
 ```{r}
-library(MaxPro)
+library("MaxPro")
+library("minimaxdesign")
 ```
 
 ```{r}
-# 18-run design
+# 1800-run design
 # 3 continuous factors, 1 discrete numeric factor (6 levels), 2 nominal factors (3 levels)
 # Generate a random Latin hypercube design (each factor standardized into [0,1]) 
 # as the initial design for continuous factors
 rand_design_part_1 = apply(
     X = matrix(
-        rep(seq(from = 0, to = 1, length = 18), 3),
+        rep(seq(from = 0, to = 1, length = 1800), 3),
         ncol = 3
     ),
     MARGIN = 2,
@@ -45,8 +46,21 @@ initial_design = cbind(
 ```
 
 ```{r}
+# for testing purposes only
+fake_initial_design = matrix(
+    data = sample(
+        seq(from = 0, to = 1, length = 10),
+        size = 10000,
+        replace = TRUE
+    ),
+    nrow = 100,
+    ncol = 100
+)
+```
+
+```{r}
 # Optimize the design based on MaxProQQ criterion
-obj = MaxProQQ(initial_design, p_nom = 2) 
+obj = MaxProQQ(fake_initial_design, p_nom = 2) 
 obj$Design
 ```
 
