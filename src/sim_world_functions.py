@@ -19,7 +19,11 @@ def weight_0_more(x, b):
 
     Args:
         x: float. Should be in interval [0, 1].
-        b: float. positive real number
+        b: float. non-zero real number.
+            Make this positive to have y 
+            concave down on [0, 1].
+            Make this negative to have y
+            concave up on [0, 1].
 
     Returns:
         float.
@@ -29,33 +33,36 @@ def weight_0_more(x, b):
     y = a*np.exp(b*x) + c
     return y
 
-def stoch_pro_1(
+def stoch_pro_lin(
     x_0, 
-    max_t, 
+    t_max, 
     slope, 
     alpha, 
     sigma_errors, 
-    amplitude, 
-    ordinary_freq, 
-    phase
+    x_min=None,
+    x_max=None,
+    amplitude=None, 
+    ordinary_freq=None, 
+    phase=None
 ):
-    """Returns values of a random variable
+    """Returns a collection of random variables
     from a stochastic process.
 
     Args:
         x_0: The 0th value of the stochastic 
             process.  
-        max_t: The last value of the time index
+        t_max: The last value of the time index
             for the process.
         slope: The approximate slope of the
             process.
         alpha: Exponential smoothing factor.
             0 < alpha < 1
         sigma_errors: Scale parameter for
-            Gaussian errors.
+            Gaussian errors    
+        x_min: minimum value of state space
+        x_max: maximum value of state space
         amplitude: Used for sinusoid term.
-            Set this to 0 if a sinusoid
-            term is not wanted.
+            Default: 0
         ordinary_freq: number of oscillations
             per unit time 
         phase: Used for sinusoid term.
@@ -69,18 +76,31 @@ def stoch_pro_1(
     For details on seaonality, see: 
     https://en.wikipedia.org/wiki/Sine_wave#Sine_wave_as_a_function_of_time
     """
-    x = np.zeros(shape=max_t + 1)
+    # Handle defaults
+    if amplitude is None:
+        amplitude = 0
+    if x_min is None:
+        x_min = -np.inf
+    if x_max is None:
+        x_max = np.inf
+    if ordinary_freq is None:
+        ordinary_freq = 0
+    if phase is None:
+        phase = 0
+
+    x = np.zeros(shape=t_max + 1)
     x[0] = x_0
 
     # s holds the smoothed values from the process.
-    s = np.zeros(shape=max_t + 1)
+    s = np.zeros(shape=t_max + 1)
     s[0] = x_0
     
-    for t in range(1, max_t + 1, 1):
+    for t in range(1, t_max + 1, 1):
         # https://en.wikipedia.org/wiki/Seasonality#Modeling
         # https://en.wikipedia.org/wiki/Sine_wave#Sine_wave_as_a_function_of_time
         sinusoid = amplitude * np.sin(2*np.pi*ordinary_freq*t + phase)
         x[t] = slope + x[t - 1] + sinusoid + stats.norm(scale=sigma_errors).rvs(size=1)[0]
-        s[t] = alpha * x[t] + (1 - alpha)*s[t - 1]
+        s[t] = min(x_max, max(x_min, alpha * x[t] + (1 - alpha)*s[t - 1]))
 
     return s
+
