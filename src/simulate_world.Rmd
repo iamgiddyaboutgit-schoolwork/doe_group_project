@@ -6,23 +6,154 @@ output: pdf_document
 
 ```{r}
 library("minimaxdesign")
+library("dplyr")
 ```
 
 ```{r}
-#20-point minimax design on design space [0,1]^2 constrained by given inequalities
-is_valid_treatment = function(treatment){ 
-    is_the_trt_valid = vector(mode = "logical", length = length(treatment))
-
-    is_the_trt_valid[1] = (treatment[2] <= 0.6 - 2*treatment[1]) 
-    is_the_trt_valid[2] = (treatment[1] >= treatment[2])
-    return(all(is_the_trt_valid))
-}
-D <- minimax(N=20,p=2,region="ineq",const=is_valid_treatment)
-plot(NULL,xlim=c(0,1),ylim=c(0,1),xlab="x1",ylab="x2") #set up plot
-polygon(c(0,0.2,0.3),c(0,0.2,0),col="gray") #design space
-points(D,pch=16) #design points
+DATA_PATH = file.path("/home/justin/Documents/schoolwork/ISYE_6413_Design_of_Exp/doe_group_project/data")
 ```
 
+
+```{r}
+scale_from_0_1 = function(x, rescalings) {
+    # Given a matrix x of real numbers,
+    # rescale the entries.  Assume that
+    # entries in the same column of x
+    # should be rescaled in the same way.
+    #
+    # Args:
+    #   x: numeric. matrix with entries in the
+    #       interval [0, 1].
+    #   rescalings: matrix. It is required that
+    #       NROW(rescalings) == NCOL(x).  Each row of 
+    #       rescalings should contain a vector
+    #       with two entries. The 1st entry
+    #       should be the min and the 2nd entry
+    #       should be the max for the rescaling
+    #       of the column in x corresponding to 
+    #       that row.
+    #   
+    # Returns:
+    #   matrix of the same dimensions as x.
+    num_x_rows = NROW(x)
+    num_x_cols = NCOL(x)
+    # To be filled in later . . . .
+    rescaled_x = matrix(
+        data = numeric(length = num_x_rows * num_x_cols), 
+        nrow = num_x_rows, 
+        ncol = num_x_cols, 
+        byrow = TRUE
+    )
+    
+    # Rescale each column of x.
+    for (j in seq_len(num_x_cols)) {
+        rescaled_x[, j] = x[, j]*(rescalings[j, 2] - rescalings[j, 1]) + rescalings[j, 1]
+    }
+
+    return(rescaled_x)
+}
+```
+
+Read in the factor chart showing the split-plot design and factor constraints.
+
+```{r}
+factor_chart = read.csv(
+    file = file.path(DATA_PATH, "factor_chart.tsv"),
+    header = TRUE,
+    sep = "\t"
+)
+
+nestings = read.csv(
+    file = file.path(DATA_PATH, "ecos.tsv"),
+    header = TRUE,
+    sep = "\t"
+)
+```
+
+```{r}
+num_factors_for_realms = sum(factor_chart["experimental_unit"] == "realm")
+num_factors_for_biome_realm_combos = sum(factor_chart["experimental_unit"] == "biome/realm combo")
+num_factors_for_ecoregions = sum(factor_chart["experimental_unit"] == "ecoregion")
+```
+
+```{r}
+num_realms = NROW(unique(nestings["REALM"]))
+num_biomes = NROW(unique(nestings["BIOME_NAME"]))
+num_ecoregions = NROW(unique(nestings["ECO_NAME"]))
+num_locations = NROW(nestings)
+
+realm_counts = nestings %>% count(REALM)
+realm_biome_combos_counts = nestings %>% count(REALM, BIOME_NAME)
+biome_counts = nestings %>% count(BIOME_NAME)
+ecoregion_counts = nestings %>% count(ECO_NAME)
+```
+
+Generate separate minimax designs for each type of factor and then combine them.
+
+```{r}
+is_valid_treatment_for_ecoregion = function(treatment){ 
+    is_the_trt_valid = vector(mode = "logical", length = length(treatment))
+
+    is_the_trt_valid[1] = (treatment[1] >= 5*max(treatment[2], treatment[3]))
+    is_the_trt_valid[5] = (round(treatment[5], 10) != 0)
+    return(all(is_the_trt_valid))
+}
+```
+
+```{r}
+design_for_realms = minimax(
+    N = num_realms,
+    p = num_factors_for_realms,
+    region = "hypercube"
+)
+```
+
+Rescale the design.
+
+```{r}
+design_for_realms_rescaled = scale_from_0_1(
+    x = design_for_realms,
+    rescalings = factor_chart %>%
+        dplyr::filter(experimental_unit == "realm") %>%
+        dplyr::select(min_level, max_level)
+)
+```
+
+Don't forget to repeat the rows as necessary to
+account for the split-plot design.
+
+```{r}
+# Initialize
+num_rows = num_locations
+num_cols = NCOL(design_for_realms_rescaled)
+design_for_realms_rescaled_repeated = matrix(
+    data = numeric(length = num_rows * num_cols),
+    nrow = num_rows,
+    ncol = num_cols
+)
+row_repeats_used = 0
+# Put entries into design_for_realms_rescaled_repeated
+for (i in seq_len(num_realms)) {
+    row_repeats_needed = realm_counts[i, "n", drop = TRUE]
+    if (row_repeats_needed == 0){
+        next
+    }
+    design_for_realms_rescaled_repeated[row_repeats_used + seq.int(row_repeats_needed), ] = design_for_realms_rescaled[
+        rep(i, times = row_repeats_needed), 
+        # all cols
+    ]
+    row_repeats_used = row_repeats_used + row_repeats_needed 
+}
+```
+
+```{r}
+design_for_ecoregions = minimax(
+    N = num_ecoregions,
+    p = num_factors_for_ecoregions,
+    region = "ineq",
+    const = is_valid_treatment_for_ecoregion
+)
+```
 
 ```{r}
 # Get day of the week.
