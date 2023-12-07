@@ -2,4 +2,5 @@ lib/
 *.html
 __pycache__
 .vscode/
-data/
+data/*
+!data/factor_chart.tsv
