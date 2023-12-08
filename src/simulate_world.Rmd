@@ -105,6 +105,22 @@ is_valid_treatment_for_ecoregion = function(treatment){
     return(all(is_the_trt_valid))
 }
 
+is_valid_treatment_for_realm = function(treatment){ 
+    # Initialize everything as TRUE,
+    # assuming that everything is going to be valid.
+    is_the_trt_valid = rep(TRUE, length(treatment))
+
+    return(all(is_the_trt_valid))
+}
+
+is_valid_treatment_for_realm_biome_combo = function(treatment){ 
+    # Initialize everything as TRUE,
+    # assuming that everything is going to be valid.
+    is_the_trt_valid = rep(TRUE, length(treatment))
+
+    return(all(is_the_trt_valid))
+}
+
 generate_max_pro_design = function(n, p_cont, rescalings, is_valid_treatment) {
     # Generate a MaxPro design with n design points
     # in the space [0, 1]^{p_cont}.
@@ -139,6 +155,7 @@ generate_max_pro_design = function(n, p_cont, rescalings, is_valid_treatment) {
     d = d_obj[["Design"]]
 
     # Improve the design further.
+    print("Running MaxPro . . . .")
     d_obj = MaxPro::MaxPro(
         InitialDesign = d,
         s = 2,
@@ -195,15 +212,17 @@ generate_max_pro_design = function(n, p_cont, rescalings, is_valid_treatment) {
 
     # Calculate the number of new points needed.
     new_needed = n - NROW(d)
+    if (new_needed > 0) {
+        # Get more points
+        print("Running MaxProAugment . . .")
+        d_obj = MaxProAugment(
+            ExistDesign = d, 
+            CandDesign = c, 
+            nNew = new_needed
+        )
 
-    # Get more points
-    d_obj = MaxProAugment(
-        ExistDesign = d, 
-        CandDesign = c, 
-        nNew = new_needed
-    )
-
-    d = d_obj[["Design"]]
+        d = d_obj[["Design"]]
+    }
 
     # Scale
     d = scale_from_0_1(
@@ -245,13 +264,14 @@ nestings = read.csv(
 
 ```{r}
 num_factors_for_realms = sum(factor_chart["experimental_unit"] == "realm")
-num_factors_for_biome_realm_combos = sum(factor_chart["experimental_unit"] == "biome/realm combo")
+num_factors_for_realm_biome_combos = sum(factor_chart["experimental_unit"] == "biome/realm combo")
 num_factors_for_ecoregions = sum(factor_chart["experimental_unit"] == "ecoregion")
 ```
 
 ```{r}
 num_realms = NROW(unique(nestings["REALM"]))
 num_biomes = NROW(unique(nestings["BIOME_NAME"]))
+num_realm_biome_combos = NROW(unique(nestings[, c("REALM", "BIOME_NAME")]))
 num_ecoregions = NROW(unique(nestings["ECO_NAME"]))
 num_locations = NROW(nestings)
 
@@ -271,6 +291,28 @@ design_for_ecoregions = generate_max_pro_design(
         dplyr::filter(experimental_unit == "ecoregion") %>%
         dplyr::select(min_level, max_level),
     is_valid_treatment = is_valid_treatment_for_ecoregion
+)
+```
+
+```{r}
+design_for_realms = generate_max_pro_design(
+    n = num_realms,
+    p_cont = num_factors_for_realms,
+    rescalings = factor_chart %>%
+        dplyr::filter(experimental_unit == "realm") %>%
+        dplyr::select(min_level, max_level),
+    is_valid_treatment = is_valid_treatment_for_realm
+)
+```
+
+```{r}
+design_for_realm_biome_combos = generate_max_pro_design(
+    n = num_realm_biome_combos,
+    p_cont = num_factors_for_realm_biome_combos,
+    rescalings = factor_chart %>%
+        dplyr::filter(experimental_unit == "biome/realm combo") %>%
+        dplyr::select(min_level, max_level),
+    is_valid_treatment = is_valid_treatment_for_realm_biome_combo
 )
 ```
 
