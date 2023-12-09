@@ -4,3 +4,4 @@ __pycache__
 .vscode/
 data/*
 !data/factor_chart.tsv
+!data/planning_matrix.txt
