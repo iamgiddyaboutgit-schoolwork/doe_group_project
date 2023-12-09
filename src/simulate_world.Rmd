@@ -245,6 +245,38 @@ generate_max_pro_design = function(n, p_cont, rescalings, is_valid_treatment) {
     return(d)
 }
 
+get_design_for_earth = function(design_helper) {
+    # Generate a MaxPro
+    # design for an earth.
+    #
+    # Args:
+    #   design_helper: list. 
+    #
+    # Returns:
+    #   dataframe. The returned value
+    #       is the planning matrix.
+
+    # Loop through the process for each kind of experimental unit.
+    # Each time, get a design and add it to our list.
+    num_kinds_of_exp_units = NROW(design_helper[["num_factors"]])
+    designs = vector(mode = "list", length = num_kinds_of_exp_units)
+
+    for (i in seq_along(designs)) {
+        exp_unit = design_helper[["num_factors"]][i, "experimental_unit", drop = TRUE]
+        num_factors = design_helper[["num_factors"]][i, "num_factors", drop = TRUE]
+
+        designs[[i]] = generate_max_pro_design(
+            n = length(design_helper[["num_repeats_needed"]][[exp_unit]]),
+            p_cont = num_factors,
+            rescalings = design_helper[["rescalings"]][[exp_unit]],
+            is_valid_treatment = design_helper[["is_valid_treatment"]][[exp_unit]]
+        ) %>%
+            repeat_rows(
+                times = design_helper[["num_repeats_needed"]][[exp_unit]]
+            )
+    }
+}
+
 repeat_rows = function(x, times) {
     # Repeat rows of a matrix x.
     # 
@@ -300,6 +332,63 @@ nestings = read.csv(
     file = file.path(DATA_PATH, "ecos.tsv"),
     header = TRUE,
     sep = "\t"
+)
+
+num_factors = factor_chart %>% 
+    group_by(experimental_unit) %>% 
+    summarize(num_factors = n())
+
+# For each kind of experimental unit,
+# extract the sub-matrix of rescalings.
+# Store these sub-matrices in a list.
+# https://dplyr.tidyverse.org/articles/programming.html
+rescalings = vector(mode = "list", length = NROW(num_factors))
+names(rescalings) = num_factors[["experimental_unit"]]
+# How many times does each experimental unit
+# get repeated for the experimental unit
+# with the lowest granularity (i.e. locations)?
+# This will be a vector for each experimental unit.
+# Also store this in a list.
+num_repeats_needed = vector(mode = "list", length = NROW(num_factors))
+names(num_repeats_needed) = num_factors[["experimental_unit"]]
+for (i in seq_len(NROW(num_factors))) {
+    exp_unit = num_factors[i, 1, drop = TRUE]
+    rescalings[[i]] = factor_chart %>%
+        dplyr::filter(experimental_unit == exp_unit) %>%
+        dplyr::select(min_level, max_level)
+
+    if (exp_unit == "realm/biome combo") {
+        num_repeats_needed[[i]] = nestings %>%
+            dplyr::group_by(REALM, BIOME_NAME) %>%
+            dplyr::summarize(n = n()) %>%
+            dplyr::select(n) %>%
+            dplyr::pull()
+    } else if (exp_unit == "realm") {
+        num_repeats_needed[[i]] = nestings %>%
+            dplyr::group_by(REALM) %>%
+            dplyr::summarize(n = n()) %>%
+            dplyr::select(n) %>%
+            dplyr::pull()
+    } else if (exp_unit == "ecoregion") {
+        num_repeats_needed[[i]] = nestings %>%
+            dplyr::group_by(ECO_NAME) %>%
+            dplyr::summarize(n = n()) %>%
+            dplyr::select(n) %>%
+            dplyr::pull()
+    } else {
+        print("Experimental unit not found.")
+    }
+}
+    
+design_helper = list(
+    num_factors = num_factors,
+    rescalings = rescalings,
+    num_repeats_needed = num_repeats_needed,
+    is_valid_treatment = list(
+        realm = is_valid_treatment_for_realm,
+        `realm/biome combo` = is_valid_treatment_for_realm_biome_combo,
+        ecoregion = is_valid_treatment_for_ecoregion
+    )
 )
 ```
 
@@ -373,7 +462,13 @@ d = cbind(
     design_for_realm_biome_combos,
     design_for_ecoregions
 )
+
+# Make a planning matrix and write to disk.
+planning_matrix = data.frame(
+
+)
 ```
+
 
 
 ```{r}
