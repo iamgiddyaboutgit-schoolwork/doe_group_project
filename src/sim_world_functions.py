@@ -104,3 +104,17 @@ def stoch_pro_lin(
 
     return s
 
+def prior_biome_before_desertification(current_biome, prob_not_desert):
+    """Returns the prior biome.
+    
+    Args:
+        current_biome: str. 
+        prob_not_desert: float. This is a number between
+            0 and 1 indicating the probability that the current
+            desert biome used to be another biome at the start
+            of the simulation.
+
+    Returns:
+        str. Indicates what the biome was historically.
+    """
+    ...
