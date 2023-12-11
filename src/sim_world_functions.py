@@ -104,7 +104,7 @@ def stoch_pro_lin(
 
     return s
 
-def prior_biome_before_desertification(current_biome, prob_not_desert):
+def prior_biome_before_desertification(current_biome, prob_not_desert, rng:np.random.Generator):
     """Returns the prior biome.
     
     Args:
@@ -117,4 +117,30 @@ def prior_biome_before_desertification(current_biome, prob_not_desert):
     Returns:
         str. Indicates what the biome was historically.
     """
-    ...
+    # If it's not desert now, then we do not
+    # worry about it being something else historically.
+    if current_biome != "Deserts & Xeric Shrublands":
+        past_biome = current_biome
+    else:
+        # We have a desert that could have been 
+        # something else.
+        r = rng.random()
+        if r <= prob_not_desert:
+            # It wasn't desert
+            other_biome_choices = [
+                "Tropical & Subtropical Grasslands, Savannas & Shrublands",
+                "Flooded Grasslands & Savannas",
+                "Temperate Grasslands, Savannas & Shrublands",
+                "Temperate Conifer Forests",
+                "Montane Grasslands & Shrublands",
+                "Temperate Broadleaf & Mixed Forests"
+            ]
+            past_biome = rng.choice(
+                a=other_biome_choices,
+                size=1
+            )
+        else:
+            # It has always been desert
+            past_biome = current_biome
+
+    return past_biome
