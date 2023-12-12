@@ -6,6 +6,7 @@ import sim_world_functions as swf
 
 import numpy as np
 
+rng = np.random.default_rng()
 # print(
 #     swf.stoch_pro_lin(
 #         x_0=0,
@@ -24,3 +25,10 @@ import numpy as np
 #         b=-6
 #     )
 # )
+
+print(
+    swf.prior_biomes_before_desertification(
+        6,
+        rng
+    )
+)

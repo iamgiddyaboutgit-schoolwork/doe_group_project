@@ -104,9 +104,11 @@ def stoch_pro_lin(
 
     return s
 
-def prior_biome_before_desertification(rng:np.random.Generator):
+def prior_biomes_before_desertification(n, rng:np.random.Generator):
     """Returns the prior biome.
 
+    Args:
+        n: int. The number of prior biomes wanted.
     Returns:
         str. Indicates what the biome was historically.
     """
@@ -118,9 +120,9 @@ def prior_biome_before_desertification(rng:np.random.Generator):
         "Montane Grasslands & Shrublands",
         "Temperate Broadleaf & Mixed Forests"
     ]
-    past_biome = rng.choice(
+    past_biomes = rng.choice(
         a=other_biome_choices,
-        size=1
-    )[0]
+        size=n
+    ).tolist()
     
-    return past_biome
+    return past_biomes
