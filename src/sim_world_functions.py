@@ -6,6 +6,8 @@ import numpy as np
 from scipy import stats
 
 def logistic_growth(previous_pop, r, carrying_cap):
+    if carrying_cap == 0:
+        carrying_cap = 0.1
     return round(previous_pop + r * previous_pop * (1 - previous_pop / carrying_cap))
 
 
@@ -126,3 +128,4 @@ def prior_biomes_before_desertification(n, rng:np.random.Generator):
     ).tolist()
     
     return past_biomes
+
